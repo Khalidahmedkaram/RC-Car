@@ -47,5 +47,7 @@ UltraSonic Connection
 Link:https://ibb.co/8dGcFFy
 Here are Youtube tutorial that will help you 
 Link:https://www.youtube.com/watch?v=1n_KjpMfVT0
+Link:https://www.youtube.com/watch?v=t7k9D1jDEtk&t=182s
+Link:https://www.youtube.com/watch?v=kQRYIH2HwfY
 
 
