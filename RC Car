@@ -1,0 +1,339 @@
+//ana l3bt fel ac motor frquency 3l4an el ultra sonic sensor
+#include <AFMotor.h>      //add Adafruit Motor Shield library
+#include <Servo.h>        //add Servo Motor library            
+#include <NewPing.h>      //add Ultrasonic sensor library
+#define lefts A0      //pin for the left sensor of the line tracker
+#define rights A1    //pin for the right sensor of the line tracker
+#define TRIG_PIN A8 // Pin A0 on the Motor Drive Shield soldered to the ultrasonic sensor
+#define ECHO_PIN A9// Pin A1 on the Motor Drive Shield soldered to the ultrasonic sensor
+#define MAX_DISTANCE 300 // sets maximum useable sensor measuring distance to 300cm
+#define MAX_SPEED_OFFSET 40 // this sets offset to allow for differences between the two DC traction motors
+#define colloid_Dist 100 // sets distance at which robot stops and reverses to 30cm
+#define TURN_DIST COLL_DIST+20 // sets distance at which robot veers away from object
+NewPing sonar(TRIG_PIN, ECHO_PIN, MAX_DISTANCE); // sets up sensor library to use the correct pins to measure distance
+int leftDistance, rightDistance; //distances on either side
+int currentDist = 0;
+int speedSet = 0;
+int counter =0;
+long duration;
+int distance;
+Servo myservo;  // create servo object to control a servo 
+char K;
+String voice;
+//initial motors pin
+AF_DCMotor motor1(1, MOTOR12_1KHZ);
+AF_DCMotor motor2(2, MOTOR12_1KHZ);
+AF_DCMotor motor3(3, MOTOR34_1KHZ); 
+AF_DCMotor motor4(4, MOTOR34_1KHZ); 
+void setup() 
+{
+pinMode(TRIG_PIN, OUTPUT); // Sets the trigPin as an Output
+pinMode(ECHO_PIN, INPUT); // Sets the echoPin as an Input
+pinMode(lefts,INPUT);//LINE TRACKING SENSOR 
+pinMode(rights,INPUT);//LINE TRACKING SENSOR
+pinMode(A2,OUTPUT); //FRONT LED
+pinMode(A3,OUTPUT);//FRONT LED 
+pinMode(A4,OUTPUT);//BACK LED
+pinMode(A5, OUTPUT);//BUZZER CODE
+myservo.attach(10);  // attaches the servo on pin 10 (SERVO_1 on the Motor Drive Shield to the servo object 
+myservo.write(40); 
+delay(1000); // delay for one seconds
+//begin serial communication
+Serial.begin(9600);
+}
+ 
+void loop()
+{
+while (Serial.available()){ //Check if there is an available byte to read
+K = Serial.read();//car controlled by mobile
+Serial.println(K);//car controlled by mobile
+}
+//________________________________________________________________________
+//THE START OF THE CAR CONTROLLED BY MOBILE CODE
+if(K=='0')
+{
+  // rotates the servo motor from 15 to 165 degrees
+  for(int i=15;i<=165;i++){  
+  myservo.write(i);
+  delay(30);
+  distance = calculateDistance();// Calls a function for calculating the distance measured by the Ultrasonic sensor for each degree
+  
+  Serial.print(i); // Sends the current degree into the Serial Port
+  Serial.print(","); // Sends addition character right next to the previous value needed later in the Processing IDE for indexing
+  Serial.print(distance); // Sends the distance value into the Serial Port
+  Serial.print("."); // Sends addition character right next to the previous value needed later in the Processing IDE for indexing
+  }
+  // Repeats the previous lines from 165 to 15 degrees
+  for(int i=165;i>15;i--){  
+  myservo.write(i);
+  delay(30);
+  distance = calculateDistance();
+  Serial.print(i);
+  Serial.print(",");
+  Serial.print(distance);
+  Serial.print(".");
+  }
+}
+else if(K == '1')
+{           
+//move forward(all motors rotate in forward direction)
+forward_car();
+}
+else if(K == '2')
+{      
+  //move reverse (all motors rotate in reverse direction)
+   back_car();
+}
+else if(K == '3')
+{    
+ //turn left (right side motors rotate in forward direction, left side motors doesn't rotate)
+left_car();
+}
+else if(K == '4')
+{      
+//turn right (left side motors rotate in forward direction, right side motors doesn't rotate)
+right_car();
+}
+else if(K == '5')
+{  
+  //STOP (all motors stop)
+   stop_car();
+}
+else if(K=='6')
+{
+//STOP WITH STYLE
+stop_withStyle ();
+}
+//________________________________________________________________________
+//THE END OF THE CAR CONTROLLED BY MOBILE CODE
+
+
+//________________________________________________________________________
+//THE START OF LINE TRACKING CODE
+
+else if(K == '7')
+{
+//printing values of sensors to the serial monitor 
+Serial.println(analogRead(lefts));
+Serial.println(analogRead(rights)); 
+//line detecting by both sensors
+//THE 400 MEANS THE DISTANCE IS 0.4CM 
+if(analogRead(lefts)<=400 && analogRead(rights)<=400)
+{ 
+//MOVE ALL car wheels forward
+forward_car();
+} 
+//line detecting by left sensor 
+else if(analogRead(lefts)<=400 && !analogRead(rights)<=400)
+{
+//turn left  
+left_car();
+} 
+//line detecting by right sensor
+else if(!analogRead(lefts)<=400 && analogRead(rights)<=400)
+{
+//turn right
+right_car();
+}
+//line detecting by none 
+else if(!analogRead(lefts)<=400 && !analogRead(rights)<=400)
+{
+//stop 
+ stop_car();
+} 
+}//________________________________________________________________________
+//THE END OF LINE TRACKING CODE
+
+//_________________________________________________________________________________________
+//Start of Car avoid obstcales code
+else if(K=='8')
+{
+myservo.write(40);  // move eyes forward
+delay(90);
+currentDist = readPing();   // read distance
+if (currentDist < colloid_Dist) 
+{
+ changePath();// if forward is blocked change direction
+}  
+else
+{
+forward_car();  // move forward
+}
+delay(500);
+}
+//AUTO PARKING
+//____________________________________________________________
+else if(K=='9')
+{
+forward_car();
+if(!analogRead(lefts)<=400 && !analogRead(rights)<=400)
+{
+counter++;
+if(counter=='2')
+{
+  stop_car();
+  back_car();
+  delay(500);
+  stop_car();
+}
+} 
+}
+}
+void forward_car()
+{
+
+motor1.setSpeed(255); //Define maximum velocity
+motor1.run(FORWARD); //rotate the motor clockwise
+motor2.setSpeed(255); //Define maximum velocity
+motor2.run(FORWARD); //rotate the motor clockwise
+motor3.setSpeed(255);//Define maximum velocity
+motor3.run(FORWARD); //rotate the motor clockwise
+motor4.setSpeed(255);//Define maximum velocity
+motor4.run(FORWARD); //rotate the motor clockwise
+// digitalWrite(A2,HIGH);//FRONT LED
+//digitalWrite(A3,HIGH);//FRONT LED
+digitalWrite(A4,LOW); //BACK LED
+digitalWrite(A5,LOW); //BUZZER
+}
+
+ void back_car()
+{
+
+motor1.setSpeed(255); //Define maximum velocity
+motor1.run(BACKWARD); //rotate the motor anti-clockwise
+motor2.setSpeed(255); //Define maximum velocity
+motor2.run(BACKWARD); //rotate the motor anti-clockwise
+motor3.setSpeed(255); //Define maximum velocity
+motor3.run(BACKWARD); //rotate the motor anti-clockwise
+motor4.setSpeed(255); //Define maximum velocity
+motor4.run(BACKWARD); //rotate the motor anti-clockwise 
+// digitalWrite(A2,LOW); //FRONT LED
+//  digitalWrite(A3,LOW); //FRONT LED
+digitalWrite(A4,HIGH); //BACK LED
+digitalWrite(A5,LOW); //BUZZER
+ 
+}
+
+ void right_car()
+{
+
+motor1.setSpeed(255); //Define maximum velocity
+motor1.run(BACKWARD); //rotate the motor anti-clockwise
+motor2.setSpeed(255); //Define maximum velocity
+motor2.run(BACKWARD); //rotate the motor anti-clockwise
+motor3.setSpeed(255); //Define maximum velocity
+motor3.run(FORWARD);  //rotate the motor clockwise
+motor4.setSpeed(255); //Define maximum velocity
+motor4.run(FORWARD);  //rotate the motor clockwise
+digitalWrite(A2, LOW);// turn the LED off (LOW is the voltage level)
+digitalWrite(A3, LOW);// turn the LED off (LOW is the voltage level)
+digitalWrite(A4,LOW);//BACK LED
+digitalWrite(A5,LOW);//BUZZER
+THE CAR MAKE FLASH TO indciate that the car will turn right
+digitalWrite(A3, HIGH);
+delay (100);
+digitalWrite(A3, LOW);// turn the LED off (LOW is the voltage level)
+}
+
+void left_car()
+{
+motor1.setSpeed(255); //Define maximum velocity
+motor1.run(FORWARD); //rotate the motor clockwise
+motor2.setSpeed(255); //Define maximum velocity
+motor2.run(FORWARD); //rotate the motor clockwise
+motor3.setSpeed(255); //Define maximum velocity
+motor3.run(BACKWARD); //rotate the motor anti-clockwise
+motor4.setSpeed(255); //Define maximum velocity
+motor4.run(BACKWARD); //rotate the motor anti-clockwise
+digitalWrite(A2, LOW);// turn the LED off (LOW is the voltage level)
+digitalWrite(A3, LOW);// turn the LED off (LOW is the voltage level)
+digitalWrite(A4,LOW);//BACK LED
+digitalWrite(A5,LOW);//BUZZER
+THE CAR MAKE FLASH TO indciate that the car will turn Left
+digitalWrite(A2, HIGH);
+delay (100);
+digitalWrite(A2, LOW);// turn the LED off (LOW is the voltage level)
+}
+void stop_car ()
+{
+
+motor1.setSpeed(0); //Define minimum velocity
+motor1.run(RELEASE); //stop the motor when release the button
+motor2.setSpeed(0); //Define minimum velocity
+motor2.run(RELEASE); //rotate the motor clockwise
+motor3.setSpeed(0); //Define minimum velocity
+motor3.run(RELEASE); //stop the motor when release the button
+motor4.setSpeed(0); //Define minimum velocity
+motor4.run(RELEASE); //stop the motor when release the button
+digitalWrite(A2,LOW);//FRONT LED
+digitalWrite(A3,LOW);//FRONT LED
+digitalWrite(A4,LOW);//BACK LED
+digitalWrite(A5,LOW);//BUZZER
+}
+void stop_withStyle ()
+{
+motor1.setSpeed(0); //Define minimum velocity
+motor1.run(RELEASE); //stop the motor when release the button
+motor2.setSpeed(0); //Define minimum velocity
+motor2.run(RELEASE); //rotate the motor clockwise
+motor3.setSpeed(0); //Define minimum velocity
+motor3.run(RELEASE); //stop the motor when release the button
+motor4.setSpeed(0); //Define minimum velocity
+motor4.run(RELEASE); //stop the motor when release the button
+digitalWrite(A2,HIGH);//FRONT LED
+digitalWrite(A3,HIGH);//FRONT LED
+digitalWrite(A4,HIGH);//BACK LED
+digitalWrite(A5,HIGH);//BUZZER
+}
+//-------------------------------------------------------------------------------------------------------------------------------------
+// Car avoid obstcales function
+int readPing()
+{
+// read the ultrasonic sensor distance
+delay(70);   
+unsigned int uS = sonar.ping();
+int cm = uS/US_ROUNDTRIP_CM;
+return cm;
+}
+void changePath() 
+{ 
+stop_car (); // stop forward movement
+myservo.write(20);  // check distance to the right
+delay(500);
+rightDistance = readPing(); //set right distance
+delay(500);
+myservo.write(130);  // check distace to the left
+delay(700);
+leftDistance = readPing(); //set left distance
+delay(500);
+myservo.write(40); //return to center
+delay(100);
+compareDistance();
+}
+void compareDistance()   // find the longest distance
+{
+if (leftDistance>rightDistance) //if left is less obstructed 
+{
+left_car();
+}
+else if (rightDistance>leftDistance) //if right is less obstructed
+{
+right_car();
+}
+}
+//radar code
+//_____________________________________________________________________________
+int calculateDistance()
+{ 
+digitalWrite(TRIG_PIN, LOW); 
+delayMicroseconds(2);
+// Sets the trigPin on HIGH state for 10 micro seconds
+digitalWrite(TRIG_PIN, HIGH); 
+delayMicroseconds(10);
+digitalWrite(TRIG_PIN, LOW);
+//kol el fo2 dah 3l4an nt2ked en el signal clear 3la 7sb el data sheet
+duration = pulseIn(ECHO_PIN, HIGH); 
+distance= duration*0.034/2;
+return distance;
+}
+
